@@ -1,0 +1,925 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Beyond Gesture – Hybrid Touchless Demo</title>
+
+  <!-- Icons -->
+  <link href="https://unpkg.com/lucide-static@latest/font/lucide.css" rel="stylesheet" />
+  <script src="https://unpkg.com/lucide@latest"></script>
+
+  <!-- Hand tracking stack -->
+  <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs-core"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs-converter"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs-backend-webgl"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/hand-pose-detection"></script>
+
+  <style>
+    * {
+      box-sizing: border-box;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    body {
+      margin: 0;
+      font-family: "Segoe UI", system-ui, -apple-system, sans-serif;
+      background: radial-gradient(circle at top left, #f4efe3, #d0c8b8);
+      color: #2d261b;
+    }
+
+    header {
+      background: linear-gradient(90deg, #ebe3d3, #e0d5c2);
+      padding: 10px 18px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      border-bottom: 1px solid rgba(120, 100, 70, 0.25);
+      backdrop-filter: blur(6px);
+      position: sticky;
+      top: 0;
+      z-index: 5;
+    }
+
+    header h1 {
+      margin: 0;
+      font-size: 18px;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      color: #4b4031;
+    }
+
+    .tagline {
+      font-size: 11px;
+      color: #7a6c55;
+      margin-top: 2px;
+    }
+
+    .top-right {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .mode-pill {
+      padding: 5px 10px;
+      border-radius: 999px;
+      background: rgba(63, 52, 38, 0.07);
+      border: 1px solid rgba(80, 60, 40, 0.25);
+      font-size: 11px;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .mode-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: #1f9a5c;
+      box-shadow: 0 0 0 4px rgba(31,154,92,0.25);
+    }
+
+    .mode-pill.cursor-mode .mode-dot {
+      background: #c0532b;
+      box-shadow: 0 0 0 4px rgba(192,83,43,0.25);
+    }
+
+    .mode-pill span {
+      letter-spacing: 0.07em;
+      text-transform: uppercase;
+    }
+
+    .top-buttons button {
+      padding: 6px 14px;
+      border-radius: 999px;
+      border: 1px solid rgba(90, 76, 56, 0.35);
+      background: rgba(255, 252, 246, 0.95);
+      cursor: pointer;
+      font-size: 13px;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.12);
+      transition: transform 0.1s ease, box-shadow 0.1s ease, background 0.1s ease;
+    }
+
+    .top-buttons button:hover {
+      background: #f4ecdd;
+      transform: translateY(-1px);
+      box-shadow: 0 3px 8px rgba(0,0,0,0.16);
+    }
+
+    .top-buttons i.lucide {
+      font-size: 16px;
+    }
+
+    .layout {
+      display: grid;
+      grid-template-columns: 220px 1fr 260px;
+      height: calc(100vh - 56px);
+      max-height: calc(100vh - 56px);
+    }
+
+    aside {
+      background: rgba(243, 236, 223, 0.88);
+      border-right: 1px solid rgba(120, 100, 70, 0.25);
+      padding: 14px 12px;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      backdrop-filter: blur(10px);
+    }
+
+    .panel-title {
+      font-size: 13px;
+      font-weight: 600;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: #6a5c45;
+      margin-bottom: 4px;
+    }
+
+    .tool-group {
+      background: rgba(255, 251, 243, 0.98);
+      border-radius: 14px;
+      padding: 8px;
+      box-shadow: 0 6px 14px rgba(0,0,0,0.08);
+      border: 1px solid rgba(160, 140, 110, 0.2);
+    }
+
+    .tool-row {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+
+    .tool-btn {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 7px 9px;
+      border-radius: 10px;
+      cursor: pointer;
+      font-size: 13px;
+      border: 1px solid transparent;
+      transition: background 0.08s ease, border-color 0.08s ease, transform 0.08s ease;
+    }
+
+    .tool-main {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .tool-btn i.lucide {
+      font-size: 17px;
+      opacity: 0.9;
+    }
+
+    .tool-secondary {
+      font-size: 11px;
+      color: #86755d;
+    }
+
+    .tool-btn:hover {
+      background: rgba(242, 232, 214, 0.9);
+      border-color: rgba(140, 120, 95, 0.5);
+      transform: translateY(-0.5px);
+    }
+
+    .tool-btn.active {
+      background: #dfceaf;
+      border-color: #a08552;
+      box-shadow: 0 2px 5px rgba(0,0,0,0.16);
+    }
+
+    .mini-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      font-size: 12px;
+      margin-top: 6px;
+      color: #7a6a53;
+    }
+
+    .mini-row span.key {
+      padding: 2px 6px;
+      border-radius: 999px;
+      border: 1px solid rgba(110, 95, 72, 0.4);
+      font-size: 10px;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+
+    .controls-panel {
+      background: rgba(255, 251, 243, 0.98);
+      border-radius: 14px;
+      padding: 8px 10px;
+      box-shadow: 0 6px 14px rgba(0,0,0,0.08);
+      border: 1px solid rgba(160, 140, 110, 0.2);
+      font-size: 12px;
+      color: #66563d;
+    }
+
+    .controls-panel label {
+      display: block;
+      margin-top: 6px;
+    }
+
+    .controls-panel input[type="color"],
+    .controls-panel select {
+      margin-top: 4px;
+      width: 100%;
+      font-size: 12px;
+      border-radius: 8px;
+      border: 1px solid rgba(160, 140, 110, 0.5);
+      padding: 3px 6px;
+      background: #f9f3e6;
+    }
+
+    .hint {
+      font-size: 11px;
+      margin-top: 6px;
+      color: #8a7a62;
+    }
+
+    .center-panel {
+      position: relative;
+      display: flex;
+      flex-direction: column;
+      padding: 12px 10px;
+      background: radial-gradient(circle at top, #fbf6ec, #e1d8c8);
+    }
+
+    .canvas-stack {
+      flex: 1;
+      position: relative;
+      border-radius: 18px;
+      overflow: hidden;
+      box-shadow:
+        0 20px 35px rgba(0,0,0,0.18),
+        0 0 0 1px rgba(120, 100, 70, 0.25);
+      background: #fff;
+    }
+
+    canvas {
+      display: block;
+    }
+
+    #baseCanvas,
+    #overlayCanvas {
+      position: absolute;
+      inset: 0;
+    }
+
+    .status-strip {
+      margin-top: 8px;
+      padding: 6px 10px;
+      border-radius: 999px;
+      background: rgba(37, 30, 22, 0.88);
+      color: #f6ecde;
+      font-size: 11px;
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      align-self: center;
+      box-shadow: 0 3px 9px rgba(0,0,0,0.25);
+    }
+
+    .status-strip span.badge {
+      padding: 2px 6px;
+      border-radius: 999px;
+      background: rgba(244, 225, 189, 0.2);
+      border: 1px solid rgba(246, 220, 183, 0.5);
+      font-size: 10px;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+    }
+
+    .right-panel {
+      background: rgba(243, 236, 223, 0.92);
+      border-left: 1px solid rgba(120, 100, 70, 0.25);
+      padding: 14px 12px;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      backdrop-filter: blur(10px);
+    }
+
+    .camera-card {
+      background: #fffaf0;
+      border-radius: 14px;
+      padding: 8px;
+      box-shadow: 0 6px 12px rgba(0,0,0,0.08);
+      border: 1px solid rgba(160, 140, 110, 0.25);
+    }
+
+    .camera-card video {
+      width: 100%;
+      border-radius: 10px;
+      border: 2px solid rgba(130, 112, 84, 0.6);
+      background: #000;
+      object-fit: cover;
+      max-height: 170px;
+    }
+
+    .camera-card p {
+      margin: 6px 0 0;
+      font-size: 11px;
+      color: #7a6b54;
+    }
+
+    .legend-card {
+      background: #fef9f0;
+      border-radius: 14px;
+      padding: 8px 10px;
+      font-size: 11px;
+      color: #6b5d46;
+      box-shadow: 0 6px 12px rgba(0,0,0,0.06);
+      border: 1px solid rgba(160, 140, 110, 0.25);
+    }
+
+    .legend-card ul {
+      padding-left: 18px;
+      margin: 6px 0 0;
+    }
+
+    #airCursor {
+      position: fixed;
+      width: 22px;
+      height: 22px;
+      border-radius: 999px;
+      border: 2px solid rgba(40, 32, 21, 0.9);
+      box-shadow: 0 0 0 3px rgba(50, 42, 31, 0.15);
+      pointer-events: none;
+      transform: translate(-50%, -50%);
+      z-index: 9999;
+      display: none;
+      background: radial-gradient(circle, rgba(255,255,255,0.7), rgba(220,200,175,0.35));
+      backdrop-filter: blur(5px);
+      transition: transform 0.05s ease, box-shadow 0.05s ease, background 0.05s ease;
+    }
+
+    #airCursor.clicking {
+      transform: translate(-50%, -50%) scale(0.8);
+      box-shadow: 0 0 0 6px rgba(76, 157, 104, 0.4);
+      background: radial-gradient(circle, rgba(220,255,228,0.85), rgba(100,180,120,0.5));
+    }
+
+    @media (max-width: 1024px) {
+      .layout {
+        grid-template-columns: 1fr;
+        grid-template-rows: auto auto auto;
+        height: auto;
+      }
+      aside, .right-panel {
+        border: none;
+        border-bottom: 1px solid rgba(120, 100, 70, 0.25);
+        flex-direction: row;
+        overflow-x: auto;
+        gap: 10px;
+      }
+      .right-panel {
+        border-top: none;
+      }
+      .camera-card video {
+        max-height: 140px;
+      }
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <div>
+      <h1>BEYOND GESTURE</h1>
+      <div class="tagline">Air Canvas along with touchless mouse functionalty.</div>
+    </div>
+    <div class="top-right">
+      <div class="mode-pill" id="modePill">
+        <div class="mode-dot"></div>
+        <span id="modeLabel">Draw Mode</span>
+      </div>
+      <div class="top-buttons">
+        <button id="clearBtn">
+          <i class="lucide" data-lucide="trash-2"></i>
+          <span>Clear</span>
+        </button>
+        <button id="saveBtn">
+          <i class="lucide" data-lucide="download"></i>
+          <span>Save PNG</span>
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <div class="layout">
+    <!-- LEFT PANEL -->
+    <aside>
+      <div class="tool-group">
+        <div class="panel-title">Tools</div>
+        <div class="tool-row">
+          <div class="tool-btn active" id="toolBrush">
+            <div class="tool-main">
+              <i class="lucide" data-lucide="paintbrush-2"></i>
+              <span>Brush</span>
+            </div>
+            <span class="tool-secondary">Pinch to draw</span>
+          </div>
+          <div class="tool-btn" id="toolShape">
+            <div class="tool-main">
+              <i class="lucide" data-lucide="shapes"></i>
+              <span>Shape</span>
+            </div>
+            <span class="tool-secondary">Ghost preview + stamp</span>
+          </div>
+          <div class="tool-btn" id="toolEraser">
+            <div class="tool-main">
+              <i class="lucide" data-lucide="eraser"></i>
+              <span>Eraser</span>
+            </div>
+            <span class="tool-secondary">Thick white brush</span>
+          </div>
+        </div>
+        <div class="mini-row">
+          <span>Toggle cursor</span>
+          <span class="key">Q</span>
+        </div>
+      </div>
+
+      <div class="controls-panel">
+        <div class="panel-title">Brush</div>
+        <label>Brush color
+          <input type="color" id="brushColorPicker" value="#111111">
+        </label>
+        <label>Base thickness
+          <select id="brushSizeSelect">
+            <option value="2">Fine</option>
+            <option value="4" selected>Normal</option>
+            <option value="8">Bold</option>
+            <option value="12">Heavy</option>
+          </select>
+        </label>
+        <div class="panel-title" style="margin-top: 10px;">Shape</div>
+        <label>Shape type
+          <select id="shapeSelect">
+            <option value="rectangle" selected>Rectangle</option>
+            <option value="circle">Circle</option>
+            <option value="line">Line</option>
+          </select>
+        </label>
+        <label>Shape color
+          <input type="color" id="shapeColorPicker" value="#c0392b">
+        </label>
+        <div class="hint">Thumb–index distance scales line thickness & shape size.</div>
+      </div>
+    </aside>
+
+    <!-- CENTER PANEL -->
+    <div class="center-panel">
+      <div class="canvas-stack">
+        <canvas id="baseCanvas"></canvas>
+        <canvas id="overlayCanvas"></canvas>
+      </div>
+      <div class="status-strip" id="statusStrip">
+        <span class="badge">Ready</span>
+        Raise your hand to the camera • Pinch to draw • Press Q for touchless cursor
+      </div>
+    </div>
+
+    <!-- RIGHT PANEL -->
+    <div class="right-panel">
+      <div class="camera-card">
+        <div class="panel-title">Gesture feed</div>
+        <video id="camera" autoplay muted></video>
+        <p>We track a single hand using MediaPipe Hands (lite) to reduce latency.</p>
+      </div>
+
+      <div class="legend-card">
+        <div class="panel-title">Gesture map</div>
+        <ul>
+          <li><strong>Draw mode (default)</strong> – index tip controls brush, pinch to paint.</li>
+          <li><strong>Shape tool</strong> – pinch to start ghost shape, release to stamp.</li>
+          <li><strong>Eraser</strong> – same gesture as brush, but thick & white.</li>
+          <li><strong>Cursor mode</strong> – press Q, index tip moves cursor, pinch to click.</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+
+  <!-- AIR CURSOR FOR CURSOR MODE -->
+  <div id="airCursor"></div>
+
+  <script>
+    lucide.createIcons();
+
+    // ELEMENTS 
+    const videoElement = document.getElementById("camera");
+    const baseCanvas = document.getElementById("baseCanvas");
+    const overlayCanvas = document.getElementById("overlayCanvas");
+    const baseCtx = baseCanvas.getContext("2d");
+    const overlayCtx = overlayCanvas.getContext("2d");
+
+    const toolBrushEl = document.getElementById("toolBrush");
+    const toolShapeEl = document.getElementById("toolShape");
+    const toolEraserEl = document.getElementById("toolEraser");
+
+    const brushColorPicker = document.getElementById("brushColorPicker");
+    const brushSizeSelect = document.getElementById("brushSizeSelect");
+    const shapeColorPicker = document.getElementById("shapeColorPicker");
+    const shapeSelect = document.getElementById("shapeSelect");
+
+    const clearBtn = document.getElementById("clearBtn");
+    const saveBtn = document.getElementById("saveBtn");
+
+    const statusStrip = document.getElementById("statusStrip");
+    const modeLabel = document.getElementById("modeLabel");
+    const modePill = document.getElementById("modePill");
+    const airCursor = document.getElementById("airCursor");
+
+    //MODES & TOOLS 
+    const MODE_DRAW = "draw";
+    const MODE_CURSOR = "cursor";
+
+    const TOOL_BRUSH = "brush";
+    const TOOL_SHAPE = "shape";
+    const TOOL_ERASER = "eraser";
+
+    let currentMode = MODE_DRAW;
+    let currentTool = TOOL_BRUSH;
+    let currentShape = "rectangle";
+
+    // Colors & sizing
+    let brushColor = brushColorPicker.value;
+    let shapeColor = shapeColorPicker.value;
+    let baseBrushSize = parseInt(brushSizeSelect.value, 10);
+    const MIN_BRUSH = 2;
+    const MAX_BRUSH = 26;
+
+    // Gesture state
+    let drawing = false;
+    let lastX = 0, lastY = 0;
+    let smoothX = 0, smoothY = 0;
+    const smoothingFactor = 0.25;
+
+    let shapeStart = null; // {x, y}
+    let lastPinched = false;
+    let lastClickTime = 0;
+
+    let detector = null;
+
+    //  CANVAS SIZING 
+    function resizeCanvases() {
+      const rect = baseCanvas.parentElement.getBoundingClientRect();
+      baseCanvas.width = rect.width;
+      baseCanvas.height = rect.height;
+      overlayCanvas.width = rect.width;
+      overlayCanvas.height = rect.height;
+
+      baseCtx.fillStyle = "#ffffff";
+      baseCtx.fillRect(0, 0, baseCanvas.width, baseCanvas.height);
+    }
+
+    window.addEventListener("resize", resizeCanvases);
+    resizeCanvases();
+
+    //TOOL LOGIC
+    function setActiveTool(tool) {
+      currentTool = tool;
+      [toolBrushEl, toolShapeEl, toolEraserEl].forEach(el => el.classList.remove("active"));
+
+      if (tool === TOOL_BRUSH) {
+        toolBrushEl.classList.add("active");
+        brushColor = brushColorPicker.value;
+      } else if (tool === TOOL_SHAPE) {
+        toolShapeEl.classList.add("active");
+      } else if (tool === TOOL_ERASER) {
+        toolEraserEl.classList.add("active");
+        brushColor = "#ffffff";
+      }
+    }
+
+    toolBrushEl.addEventListener("click", () => setActiveTool(TOOL_BRUSH));
+    toolShapeEl.addEventListener("click", () => setActiveTool(TOOL_SHAPE));
+    toolEraserEl.addEventListener("click", () => setActiveTool(TOOL_ERASER));
+
+    brushColorPicker.addEventListener("input", e => {
+      if (currentTool === TOOL_BRUSH) {
+        brushColor = e.target.value;
+      }
+    });
+
+    brushSizeSelect.addEventListener("change", e => {
+      baseBrushSize = parseInt(e.target.value, 10);
+    });
+
+    shapeColorPicker.addEventListener("input", e => {
+      shapeColor = e.target.value;
+    });
+
+    shapeSelect.addEventListener("change", e => {
+      currentShape = e.target.value;
+    });
+
+    // MODE SWITCH (Q KEY)
+    document.addEventListener("keydown", e => {
+      if (e.key.toLowerCase() === "q") {
+        currentMode = currentMode === MODE_DRAW ? MODE_CURSOR : MODE_DRAW;
+        updateModeUI();
+      }
+    });
+
+    function updateModeUI() {
+      if (currentMode === MODE_DRAW) {
+        modeLabel.textContent = "Draw Mode";
+        modePill.classList.remove("cursor-mode");
+        airCursor.style.display = "none";
+        statusStrip.innerHTML = '<span class="badge">Draw</span> Pinch to paint or shape • Press Q for touchless cursor';
+      } else {
+        modeLabel.textContent = "Cursor Mode";
+        modePill.classList.add("cursor-mode");
+        statusStrip.innerHTML = '<span class="badge">Cursor</span> Index moves cursor • Pinch to click • Press Q to return';
+      }
+    }
+
+    updateModeUI();
+
+    // CLICK HELPERS (INSIDE PAGE) 
+    function simulateClickAt(clientX, clientY) {
+      const target = document.elementFromPoint(clientX, clientY);
+      if (target && target !== airCursor) {
+        target.click();
+      }
+    }
+
+    //  DISTANCE → SIZE MAPPING 
+    function mapDistanceToSize(dist) {
+      const minDist = 20;
+      const maxDist = 220;
+      const clamped = Math.max(minDist, Math.min(maxDist, dist));
+      const factor = (clamped - minDist) / (maxDist - minDist);
+      const dynamicRange = MAX_BRUSH - MIN_BRUSH;
+      const scaled = MIN_BRUSH + dynamicRange * factor + baseBrushSize;
+      return Math.min(MAX_BRUSH + baseBrushSize, Math.max(MIN_BRUSH, scaled));
+    }
+
+    // CAMERA & MODEL INIT 
+    async function initHandTracking() {
+      try {
+        await tf.setBackend("webgl");
+        await tf.ready();
+
+        const model = handPoseDetection.SupportedModels.MediaPipeHands;
+        detector = await handPoseDetection.createDetector(model, {
+          runtime: "mediapipe",
+          modelType: "lite",
+          solutionPath: "https://cdn.jsdelivr.net/npm/@mediapipe/hands",
+          maxHands: 1
+        });
+
+        statusStrip.innerHTML = '<span class="badge">Ready</span> Hand tracking active • Start gesturing.';
+        detect();
+      } catch (err) {
+        console.error(err);
+        statusStrip.innerHTML = '<span class="badge">Error</span> Failed to initialize model. Check console.';
+      }
+    }
+
+    navigator.mediaDevices.getUserMedia({ video: true })
+      .then(stream => {
+        videoElement.srcObject = stream;
+        videoElement.onloadedmetadata = () => {
+          videoElement.play();
+          initHandTracking();
+        };
+      })
+      .catch(err => {
+        console.error(err);
+        statusStrip.innerHTML = '<span class="badge">Error</span> Camera access denied. Enable camera permissions.';
+      });
+
+let cursorX = 0;
+let cursorY = 0;
+let smoothCursorX = 0;
+let smoothCursorY = 0;
+
+        
+
+
+    // CORE DETECTION LOOP
+    async function detect() {
+      if (!detector) {
+        requestAnimationFrame(detect);
+        return;
+      }
+
+      let hands;
+      try {
+        hands = await detector.estimateHands(videoElement, { flipHorizontal: true });
+      } catch (err) {
+        console.error("Detection error:", err);
+        requestAnimationFrame(detect);
+        return;
+      }
+
+      overlayCtx.clearRect(0, 0, overlayCanvas.width, overlayCanvas.height);
+
+      if (hands.length > 0) {
+        const keypoints = hands[0].keypoints;
+        const indexTip = keypoints.find(k => k.name === "index_finger_tip");
+
+        const thumbTip = keypoints.find(k => k.name === "thumb_tip");
+
+        if (indexTip && thumbTip && videoElement.videoWidth > 0 && videoElement.videoHeight > 0) {
+          const distance = Math.hypot(indexTip.x - thumbTip.x, indexTip.y - thumbTip.y);
+
+          let targetX = (indexTip.x / videoElement.videoWidth) * baseCanvas.width;
+          let targetY = (indexTip.y / videoElement.videoHeight) * baseCanvas.height;
+
+          smoothX += (targetX - smoothX) * smoothingFactor;
+          smoothY += (targetY - smoothY) * smoothingFactor;
+
+          const dynamicSize = mapDistanceToSize(distance);
+          const isPinched = distance < 55;
+          cursorX = (indexTip.x / videoElement.videoWidth) * baseCanvas.width;
+          cursorY = (indexTip.y / videoElement.videoHeight) * baseCanvas.height;
+
+// Smooth cursor
+          smoothCursorX += (cursorX - smoothCursorX) * 0.25;
+          smoothCursorY += (cursorY - smoothCursorY) * 0.25;
+
+
+          // Cursor halo in overlay for draw mode
+          overlayCtx.save();
+          overlayCtx.beginPath();
+          overlayCtx.arc(smoothX, smoothY, 8, 0, Math.PI * 2);
+          overlayCtx.fillStyle = "rgba(40,30,20,0.12)";
+          overlayCtx.fill();
+          overlayCtx.lineWidth = 1.5;
+          overlayCtx.strokeStyle = "rgba(60,40,20,0.4)";
+          overlayCtx.stroke();
+          overlayCtx.restore();
+
+          // CURSOR MODE 
+          if (currentMode === MODE_CURSOR) {
+            const bounds = document.body.getBoundingClientRect();
+
+            const clientX =
+             (indexTip.x / videoElement.videoWidth) * bounds.width + bounds.left;
+
+            const clientY =
+             (indexTip.y / videoElement.videoHeight) * bounds.height + bounds.top;
+
+            airCursor.style.display = "block";
+            airCursor.style.left = smoothCursorX + "px";
+            airCursor.style.top = smoothCursorY + "px";
+
+            if (isPinched && !lastPinched && Date.now() - lastClickTime > 250) {
+              lastClickTime = Date.now();
+              airCursor.classList.add("clicking");
+              simulateClickAt(clientX, clientY);
+              setTimeout(() => airCursor.classList.remove("clicking"), 120);
+            }
+
+            lastPinched = isPinched;
+            requestAnimationFrame(detect);
+            return;
+          } else {
+            airCursor.style.display = "none";
+          }
+
+          //  DRAW MODE 
+          baseCtx.lineCap = "round";
+          baseCtx.lineJoin = "round";
+
+          // Brush / Eraser
+          if (currentTool === TOOL_BRUSH || currentTool === TOOL_ERASER) {
+            baseCtx.lineWidth = dynamicSize;
+            baseCtx.strokeStyle = brushColor;
+
+            if (isPinched) {
+              if (!drawing) {
+                drawing = true;
+                lastX = smoothX;
+                lastY = smoothY;
+                if (!isPinched) drawing = false;
+
+              }
+              baseCtx.beginPath();
+              baseCtx.moveTo(lastX, lastY);
+              baseCtx.lineTo(smoothX, smoothY);
+              baseCtx.stroke();
+              lastX = smoothX;
+              lastY = smoothY;
+
+              // Pulse at pointer
+              overlayCtx.beginPath();
+              overlayCtx.arc(smoothX, smoothY, dynamicSize * 0.3, 0, Math.PI * 2);
+              overlayCtx.fillStyle = "rgba(70,120,80,0.2)";
+              overlayCtx.fill();
+            } else {
+              drawing = false;
+            }
+          }
+
+          // Shapes
+          if (currentTool === TOOL_SHAPE) {
+            baseCtx.strokeStyle = shapeColor;
+            baseCtx.lineWidth = dynamicSize;
+
+            if (isPinched && !shapeStart) {
+              shapeStart = { x: smoothX, y: smoothY };
+            }
+
+            if (isPinched && shapeStart) {
+              // Ghost preview on overlay
+              const x1 = shapeStart.x;
+              const y1 = shapeStart.y;
+              const x2 = smoothX;
+              const y2 = smoothY;
+
+              overlayCtx.save();
+              overlayCtx.setLineDash([6, 4]);
+              overlayCtx.strokeStyle = "rgba(180,60,40,0.9)";
+              overlayCtx.lineWidth = dynamicSize * 0.8;
+
+              if (currentShape === "rectangle") {
+                overlayCtx.strokeRect(x1, y1, x2 - x1, y2 - y1);
+              } else if (currentShape === "circle") {
+                const radius = Math.hypot(x2 - x1, y2 - y1) / 2;
+                const cx = (x1 + x2) / 2;
+                const cy = (y1 + y2) / 2;
+                overlayCtx.beginPath();
+                overlayCtx.arc(cx, cy, radius, 0, Math.PI * 2);
+                overlayCtx.stroke();
+              } else if (currentShape === "line") {
+                overlayCtx.beginPath();
+                overlayCtx.moveTo(x1, y1);
+                overlayCtx.lineTo(x2, y2);
+                overlayCtx.stroke();
+              }
+              overlayCtx.restore();
+            }
+
+            if (!isPinched && shapeStart) {
+              // Commit shape to base canvas
+              const x1 = shapeStart.x;
+              const y1 = shapeStart.y;
+              const x2 = smoothX;
+              const y2 = smoothY;
+
+              if (currentShape === "rectangle") {
+                baseCtx.strokeRect(x1, y1, x2 - x1, y2 - y1);
+              } else if (currentShape === "circle") {
+                const radius = Math.hypot(x2 - x1, y2 - y1) / 2;
+                const cx = (x1 + x2) / 2;
+                const cy = (y1 + y2) / 2;
+                baseCtx.beginPath();
+                baseCtx.arc(cx, cy, radius, 0, Math.PI * 2);
+                baseCtx.stroke();
+              } else if (currentShape === "line") {
+                baseCtx.beginPath();
+                baseCtx.moveTo(x1, y1);
+                baseCtx.lineTo(x2, y2);
+                baseCtx.stroke();
+              }
+
+              // Ripple effect
+              overlayCtx.beginPath();
+              overlayCtx.arc(smoothX, smoothY, 18, 0, Math.PI * 2);
+              overlayCtx.strokeStyle = "rgba(200,80,50,0.6)";
+              overlayCtx.lineWidth = 3;
+              overlayCtx.stroke();
+
+              shapeStart = null;
+            }
+          }
+
+          lastPinched = isPinched;
+        }
+      } else {
+        drawing = false;
+        shapeStart = null;
+        lastPinched = false;
+      }
+    
+
+      requestAnimationFrame(detect);
+    }
+
+    // CLEAR & SAVE
+    clearBtn.addEventListener("click", () => {
+      baseCtx.fillStyle = "#ffffff";
+      baseCtx.fillRect(0, 0, baseCanvas.width, baseCanvas.height);
+    });
+
+    saveBtn.addEventListener("click", () => {
+      const link = document.createElement("a");
+      link.download = "beyond_gesture_hybrid.png";
+      link.href = baseCanvas.toDataURL("image/png");
+      link.click();
+    });
+  </script>
+</body>
+</html>

@@ -1,0 +1,157 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Beyond Gesture Intro</title>
+  <style>
+    body {
+      margin: 0;
+      overflow: hidden;
+      background: #f7eac990;
+      font-family: 'Consolas', sans-serif;
+    }
+
+    /* Smoke effect container */
+    #smoke-container {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+      background: #f8f0daf0;
+    }
+
+    .smoke {
+      position: absolute;
+      width: 400px;
+      height: 400px;
+      background: linear-gradient(to left, #fbb8db, #dac397, #feffc1, #faffd3, #edf3ae, #fbf6c5, #daa9ef);
+      filter: blur(150px);
+      border-radius: 50%;
+      animation: move-smoke 10s infinite ease-in-out;
+      pointer-events: none;
+    }
+
+    /* Text reveal */
+    #text {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      color: #170000;
+      font-size: 5rem;
+      font-weight: bold;
+      text-transform: uppercase;
+      letter-spacing: 10px;
+      opacity: 0;
+      background: linear-gradient(to left, #1b0202a4, #1b0202a4, #1b0202a4, #1b0202a4, #1b0202a4, #1b0202a4, #1b0202a4);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      animation: text-reveal 6.5s ease forwards;
+    }
+
+    /* Ripple effect */
+    #ripples {
+      position: absolute;
+      width: 100%;
+      height: 100%;
+      background: radial-gradient(rgba(253, 155, 176, 0.263), transparent);
+      background-size: 200% 200%;
+      animation: ripple-effect 5s infinite;
+      pointer-events: none;
+    }
+
+    @keyframes move-smoke {
+      0% {
+        transform: translate(-50%, -50%) scale(1);
+      }
+      50% {
+        transform: translate(120vw, -30vh) scale(2.5);
+      }
+      100% {
+        transform: translate(-50%, 100vh) scale(2);
+      }
+    }
+
+    @keyframes text-reveal {
+      0% {
+        opacity: 0;
+      }
+      25% {
+        opacity: 0;
+      }
+      100% {
+        opacity: 1;
+      }
+    }
+
+    @keyframes ripple-effect {
+      0% {
+        background-position: 0% 0%;
+      }
+      50% {
+        background-position: 100% 100%;
+      }
+      100% {
+        background-position: 0% 0%;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div id="smoke-container">
+    <div class="smoke" style="top: 10%; left: 20%; background: #d290c5;"></div>
+    <div class="smoke" style="top: 30%; left: 40%; background: #c0fff8;"></div>
+    <div class="smoke" style="top: 50%; left: 60%; background: #b4fab6;"></div>
+    <div class="smoke" style="top: 70%; left: 80%; background: #ffbef4;"></div>
+    <div class="smoke" style="top: 20%; left: 10%; background: #cbe4ff;"></div>
+    <div class="smoke" style="top: 40%; left: 30%; background: #fff6a2;"></div>
+    <div class="smoke" style="top: 60%; left: 50%; background: #bcf9bf;"></div>
+  </div>
+
+  <div id="text">Beyond Gesture</div>
+
+  <div id="ripples"></div>
+
+  <script>
+    // Dynamically generate smoke elements for randomness
+    const smokeContainer = document.getElementById('smoke-container');
+
+    for (let i = 0; i < 10; i++) {
+      const smoke = document.createElement('div');
+      smoke.className = 'smoke';
+      smoke.style.top = `${Math.random() * 100}%`;
+      smoke.style.left = `${Math.random() * 100}%`;
+      smoke.style.animationDelay = `${Math.random() * 5}s`;
+      smokeContainer.appendChild(smoke);
+    }
+  </script>
+  <!-- Smooth cinematic exit overlay -->
+<div id="exitFade" style="
+  position: fixed;
+  inset: 0;
+  background: radial-gradient(circle at center, #0e0b07, #000);
+  opacity: 0;
+  pointer-events: none;
+  z-index: 99999;
+  transition: opacity 1.2s ease;
+"></div>
+
+<script>
+  
+  setTimeout(() => {
+    const fade = document.getElementById("exitFade");
+    fade.style.opacity = "1";
+
+    
+    setTimeout(() => {
+      window.location.href = "indexx.html";
+    }, 1200);
+
+  }, 7000); 
+</script>
+
+</body>
+</html>
